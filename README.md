@@ -2,7 +2,7 @@
 
 A deterministic Python data cleaning pipeline and REST API for standardizing, validating, and repairing business CSV and Excel (`.xlsx`) datasets.
 
-[![CI Pipeline](https://github.com/your-username/data-automation-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/data-automation-demo/actions)
+[![CI Pipeline](https://github.com/sergiochillon/data-automation-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/sergiochillon/data-automation-demo/actions)
 [![Python 3.12](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![pandas](https://img.shields.io/badge/pandas-2.2+-150458.svg)](https://pandas.pydata.org)
@@ -20,7 +20,7 @@ In administrative and operational workflows, spreadsheets exported from CRMs, ER
 - Clashing numeric and currency formats (such as European `1.250,50` vs. US `1,250.50`).
 - Completely blank rows and columns.
 - Exact duplicate records that distort metrics.
-- CSV formula injection vulnerabilities (DDE formula characters) that can execute commands when opened in desktop spreadsheet applications.
+- CSV formula injection risks caused by spreadsheet formula characters that may be interpreted when files are opened in spreadsheet applications.
 
 **Data Processing Tool** provides a deterministic backend pipeline that accepts uploaded `.csv` or `.xlsx` files, applies explicit normalization rules, flags unparseable records without discarding them, and generates clean downloadable files accompanied by an itemized audit log.
 
@@ -202,7 +202,7 @@ data-automation-demo/
 ### Installation
 ```bash
 # Clone repository
-git clone https://github.com/your-username/data-automation-demo.git
+git clone https://github.com/sergiochillon/data-automation-demo.git
 cd data-automation-demo
 
 # Create and activate virtual environment
@@ -267,7 +267,7 @@ pytest -v
 
 Expected output:
 ```text
-============================== 41 passed in 0.50s ==============================
+============================== 41 passed ==============================
 ```
 
 The 41 tests cover:
