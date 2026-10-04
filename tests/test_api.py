@@ -1,10 +1,9 @@
-import io
 import uuid
-import pytest
-from app.config import MAX_UPLOAD_SIZE_BYTES
+from pathlib import Path
 
 
 def test_api_health_endpoint(client):
+    """Healthcheck endpoint returns 200 and valid service metadata."""
     response = client.get("/api/health")
     assert response.status_code == 200
     data = response.json()
@@ -14,6 +13,7 @@ def test_api_health_endpoint(client):
 
 
 def test_serve_index_html(client):
+    """Serves the Single Page Application UI with correct headers."""
     response = client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers.get("content-type", "")
@@ -21,6 +21,7 @@ def test_serve_index_html(client):
 
 
 def test_process_valid_csv(client, valid_csv_bytes):
+    """Valid CSV is correctly parsed, cleaned, and audited."""
     response = client.post(
         "/api/process",
         files={"file": ("test_dataset.csv", valid_csv_bytes, "text/csv")},
@@ -30,8 +31,8 @@ def test_process_valid_csv(client, valid_csv_bytes):
 
     assert "file_id" in data
     assert data["original_filename"] == "test_dataset.csv"
-    assert data["metrics"]["rows_initial"] == 5  # 5 rows parsed
-    assert data["metrics"]["rows_final"] == 3    # 1 empty row dropped, 1 duplicate dropped
+    assert data["metrics"]["rows_initial"] == 5
+    assert data["metrics"]["rows_final"] == 3
     assert data["metrics"]["duplicate_rows_removed"] == 1
     assert data["metrics"]["rows_removed_empty"] == 1
     assert data["metrics"]["invalid_emails_count"] == 1
@@ -41,21 +42,61 @@ def test_process_valid_csv(client, valid_csv_bytes):
 
 
 def test_process_valid_excel(client, valid_xlsx_bytes):
+    """Valid Excel workbook is parsed and normalized correctly."""
+    excel_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     response = client.post(
         "/api/process",
-        files={"file": ("test_workbook.xlsx", valid_xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        files={"file": ("test_workbook.xlsx", valid_xlsx_bytes, excel_mime)},
     )
     assert response.status_code == 200
     data = response.json()
 
     assert data["original_filename"] == "test_workbook.xlsx"
     assert data["metrics"]["rows_initial"] == 4
-    assert data["metrics"]["rows_final"] == 2  # 1 empty dropped, 1 duplicate dropped
+    assert data["metrics"]["rows_final"] == 2
     assert data["metrics"]["duplicate_rows_removed"] == 1
     assert data["metrics"]["rows_removed_empty"] == 1
 
 
+def test_process_semicolon_delimited_csv(client):
+    """European-style semicolon delimited CSV is auto-detected and processed."""
+    csv_content = (
+        "Name;Email;Revenue\n"
+        "Acme Corp;info@acme.com;€ 1.250,50\n"
+        "Beta Ltd;contact@beta.co.uk;€ 3.400,00\n"
+    ).encode()
+
+    response = client.post(
+        "/api/process",
+        files={"file": ("european_data.csv", csv_content, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["metrics"]["rows_initial"] == 2
+    assert data["metrics"]["rows_final"] == 2
+    assert len(data["columns"]) == 3
+
+
+def test_process_tab_delimited_csv(client):
+    """Tab-delimited TSV/CSV format is detected and processed."""
+    tsv_content = (
+        b"Name\tEmail\tAmount\n"
+        b"Delta Inc\tsupport@delta.io\t$500.00\n"
+        b"Echo LLC\tsales@echo.com\t$750.00\n"
+    )
+
+    response = client.post(
+        "/api/process",
+        files={"file": ("tab_data.csv", tsv_content, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["metrics"]["rows_initial"] == 2
+    assert data["metrics"]["rows_final"] == 2
+
+
 def test_process_empty_file_returns_400(client):
+    """Zero-byte upload returns 400 Bad Request."""
     response = client.post(
         "/api/process",
         files={"file": ("empty.csv", b"", "text/csv")},
@@ -65,6 +106,7 @@ def test_process_empty_file_returns_400(client):
 
 
 def test_process_disallowed_extension_returns_400(client):
+    """Disallowed extension returns 400 with permitted formats."""
     response = client.post(
         "/api/process",
         files={"file": ("data.json", b'{"key": "val"}', "application/json")},
@@ -74,7 +116,7 @@ def test_process_disallowed_extension_returns_400(client):
 
 
 def test_process_corrupt_csv_returns_400(client):
-    # Null byte sequences that fail standard text processing
+    """Binary null bytes masquerading as CSV are rejected with 400."""
     corrupt_bytes = b"\x00\x00\x00\x00\xff\xfe\x00\x00"
     response = client.post(
         "/api/process",
@@ -86,18 +128,21 @@ def test_process_corrupt_csv_returns_400(client):
 
 
 def test_process_corrupt_excel_returns_400(client):
+    """Invalid ZIP archive sent as XLSX returns 400."""
+    excel_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     corrupt_bytes = b"Not a zip file or valid openpyxl spreadsheet"
     response = client.post(
         "/api/process",
-        files={"file": ("bad.xlsx", corrupt_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        files={"file": ("bad.xlsx", corrupt_bytes, excel_mime)},
     )
     assert response.status_code == 400
     assert "Could not parse Excel" in response.json()["detail"]
 
 
 def test_process_oversized_file_returns_413(client, monkeypatch):
-    # Temporarily set max size to 100 bytes to test 413 payload limit deterministically
+    """Files exceeding maximum configured payload return HTTP 413."""
     import app.main as main_module
+
     monkeypatch.setattr(main_module, "MAX_UPLOAD_SIZE_BYTES", 100)
 
     oversized_data = b"col1,col2\n" + (b"val1,val2\n" * 50)
@@ -110,7 +155,7 @@ def test_process_oversized_file_returns_413(client, monkeypatch):
 
 
 def test_download_clean_csv_and_xlsx(client, valid_csv_bytes):
-    # First, process a file to obtain a valid file_id
+    """Successfully streams cleaned CSV and XLSX attachments."""
     process_resp = client.post(
         "/api/process",
         files={"file": ("dataset.csv", valid_csv_bytes, "text/csv")},
@@ -131,12 +176,14 @@ def test_download_clean_csv_and_xlsx(client, valid_csv_bytes):
 
 
 def test_download_invalid_uuid_returns_400(client):
+    """Malformed UUID path parameter returns 400."""
     response = client.get("/api/download/not-a-valid-uuid/csv")
     assert response.status_code == 400
     assert "Invalid file identifier" in response.json()["detail"]
 
 
 def test_download_nonexistent_uuid_returns_404(client):
+    """Non-existent UUID session returns 404."""
     random_uuid = str(uuid.uuid4())
     response = client.get(f"/api/download/{random_uuid}/csv")
     assert response.status_code == 404
@@ -144,6 +191,7 @@ def test_download_nonexistent_uuid_returns_404(client):
 
 
 def test_download_invalid_format_returns_400(client):
+    """Unapproved export format returns 400."""
     random_uuid = str(uuid.uuid4())
     response = client.get(f"/api/download/{random_uuid}/pdf")
     assert response.status_code == 400
@@ -151,16 +199,17 @@ def test_download_invalid_format_returns_400(client):
 
 
 def test_demo_data_static_serving(client):
+    """Static demo file endpoint serves raw demo files correctly."""
     response = client.get("/demo-data/customers_messy.csv")
     assert response.status_code == 200
     assert "CUST-1001" in response.text
 
 
 def test_process_actual_demo_csv_file(client):
-    from pathlib import Path
+    """Full end-to-end integration test with real demo CSV dataset."""
     demo_path = Path("demo_data/customers_messy.csv")
     assert demo_path.exists(), "demo_data/customers_messy.csv must exist"
-    
+
     with open(demo_path, "rb") as f:
         response = client.post(
             "/api/process",
@@ -177,14 +226,15 @@ def test_process_actual_demo_csv_file(client):
 
 
 def test_process_actual_demo_xlsx_file(client):
-    from pathlib import Path
+    """Full end-to-end integration test with real demo Excel dataset."""
+    excel_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     demo_path = Path("demo_data/customers_messy.xlsx")
     assert demo_path.exists(), "demo_data/customers_messy.xlsx must exist"
-    
+
     with open(demo_path, "rb") as f:
         response = client.post(
             "/api/process",
-            files={"file": (demo_path.name, f.read(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+            files={"file": (demo_path.name, f.read(), excel_mime)},
         )
     assert response.status_code == 200
     data = response.json()

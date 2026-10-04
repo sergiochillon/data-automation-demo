@@ -1,30 +1,78 @@
+import contextlib
 import io
+import logging
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
 import numpy as np
 import pandas as pd
 
 from app.models import ProcessingMetrics
 from app.security import sanitize_cell_value
 
-# Email RFC 5322 pragmatic validation pattern
+logger = logging.getLogger(__name__)
+
+# Pragmatic RFC 5322 compliant pattern for email validation
 EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
 
-# Candidate column names for specific logic
+# Candidate keywords for column heuristic classification
 EMAIL_COL_KEYWORDS = ("email", "e-mail", "correo", "mail")
-NAME_COL_KEYWORDS = ("name", "first_name", "last_name", "full_name", "nombre", "customer_name", "client_name")
-NUMERIC_COL_KEYWORDS = ("revenue", "amount", "price", "total", "balance", "sales", "cost", "income", "ingresos")
+NAME_COL_KEYWORDS = (
+    "name",
+    "first_name",
+    "last_name",
+    "full_name",
+    "nombre",
+    "customer_name",
+    "client_name",
+)
+NUMERIC_COL_KEYWORDS = (
+    "revenue",
+    "amount",
+    "price",
+    "total",
+    "balance",
+    "sales",
+    "cost",
+    "income",
+    "ingresos",
+    "budget",
+)
 
 
 class DataProcessingError(Exception):
-    """Raised when input data cannot be parsed or is unrecoverably invalid."""
+    """Base exception raised when input dataset cannot be parsed or processed."""
+
+    pass
+
+
+class FileFormatError(DataProcessingError):
+    """Raised when file extension or contents cannot be parsed as valid tabular data."""
+
+    pass
+
+
+class EmptyDatasetError(DataProcessingError):
+    """Raised when the uploaded file contains zero bytes or zero rows."""
+
     pass
 
 
 def load_dataframe_from_bytes(file_bytes: bytes, filename: str) -> pd.DataFrame:
     """
-    Parses CSV or Excel bytes into a pandas DataFrame with sensible encoding fallbacks.
+    Parses CSV or Excel bytes into a pandas DataFrame with automatic delimiter
+    sniffing and multiple text encoding fallbacks.
+
+    Args:
+        file_bytes: Raw binary content of uploaded file.
+        filename: Original file name used to discern format.
+
+    Returns:
+        Loaded pandas DataFrame.
+
+    Raises:
+        DataProcessingError: If parsing fails across all encoding/delimiter strategies.
     """
     if not file_bytes or len(file_bytes.strip()) == 0:
         raise DataProcessingError("File contains no data.")
@@ -32,34 +80,75 @@ def load_dataframe_from_bytes(file_bytes: bytes, filename: str) -> pd.DataFrame:
     filename_lower = filename.lower()
 
     if filename_lower.endswith(".csv"):
-        # Check for binary files masquerading as CSV (presence of null bytes)
+        # Detect binary or corrupted non-text files
         if b"\x00" in file_bytes:
-            raise DataProcessingError("File contains null bytes or binary characters; not a valid CSV text document.")
+            raise DataProcessingError(
+                "File contains null bytes or binary characters; not a valid CSV text document."
+            )
 
-        # Attempt common text encodings
         encodings = ["utf-8-sig", "utf-8", "latin-1", "cp1252"]
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
+        # Strategy 1: Automatic separator sniffing with Python engine
         for enc in encodings:
             try:
-                # Use python engine with sep=None to detect delimiter, and index_col=False to prevent treating col 0 as index
-                df = pd.read_csv(io.BytesIO(file_bytes), encoding=enc, sep=None, engine="python", index_col=False)
+                df = pd.read_csv(
+                    io.BytesIO(file_bytes),
+                    encoding=enc,
+                    sep=None,
+                    engine="python",
+                    index_col=False,
+                )
+                logger.info(
+                    "Parsed CSV '%s' using encoding '%s' and delimiter sniffing (%d rows)",
+                    filename,
+                    enc,
+                    len(df),
+                )
                 return df
             except Exception as e:
                 last_error = e
                 continue
 
-        raise DataProcessingError(f"Could not parse CSV file. Error details: {str(last_error)}")
+        # Strategy 2: Fallback to common explicit delimiters (comma, semicolon, tab, pipe)
+        fallback_delimiters = [",", ";", "\t", "|"]
+        for enc in encodings:
+            for delim in fallback_delimiters:
+                try:
+                    df = pd.read_csv(
+                        io.BytesIO(file_bytes),
+                        encoding=enc,
+                        sep=delim,
+                        engine="python",
+                        index_col=False,
+                    )
+                    logger.info(
+                        "Parsed CSV '%s' via fallback delimiter '%s' and encoding '%s'",
+                        filename,
+                        delim,
+                        enc,
+                    )
+                    return df
+                except Exception as e:
+                    last_error = e
+                    continue
+
+        raise DataProcessingError(f"Could not parse CSV file. Error details: {last_error}")
 
     elif filename_lower.endswith(".xlsx"):
         try:
             df = pd.read_excel(io.BytesIO(file_bytes), engine="openpyxl")
+            logger.info("Parsed Excel workbook '%s' (%d rows)", filename, len(df))
             return df
         except Exception as e:
-            raise DataProcessingError(f"Could not parse Excel (.xlsx) file. Error details: {str(e)}")
+            raise DataProcessingError(
+                f"Could not parse Excel (.xlsx) file. Error details: {e}"
+            ) from e
 
     else:
-        raise DataProcessingError(f"Unsupported file format for '{filename}'. Expected .csv or .xlsx.")
+        raise DataProcessingError(
+            f"Unsupported file format for '{filename}'. Expected .csv or .xlsx."
+        )
 
 
 def is_email_column(col_name: str, sample_series: pd.Series) -> bool:
@@ -78,21 +167,30 @@ def is_email_column(col_name: str, sample_series: pd.Series) -> bool:
 
 
 def is_name_column(col_name: str) -> bool:
-    """Determines whether a column likely contains person or business names."""
+    """Determines whether a column likely represents person or organization names."""
     col_clean = str(col_name).strip().lower()
     return any(keyword in col_clean for keyword in NAME_COL_KEYWORDS)
 
 
 def is_numeric_candidate_column(col_name: str) -> bool:
-    """Determines whether a column should be treated as numeric/financial."""
+    """Determines whether a column represents financial or numeric quantities."""
     col_clean = str(col_name).strip().lower()
     return any(keyword in col_clean for keyword in NUMERIC_COL_KEYWORDS)
 
 
-def clean_currency_or_numeric_string(val: Any) -> Tuple[Any, bool, bool]:
+def clean_currency_or_numeric_string(val: Any) -> tuple[Any, bool, bool]:
     """
-    Attempts to clean and normalize a numeric/currency string.
-    Returns: (cleaned_val, was_normalized, is_invalid)
+    Normalizes formatted numeric and currency strings into standard floating numbers.
+
+    Handles:
+    - Currency symbols: $, €, £, ¥
+    - US decimal format: 1,250.50
+    - European decimal format: 1.250,50
+    - Negative accounting notation: ($500.00) or -$500.00
+    - Whitespace trimming
+
+    Returns:
+        tuple of (cleaned_value, was_normalized: bool, is_invalid: bool)
     """
     if val is None or pd.isna(val):
         return np.nan, False, False
@@ -104,46 +202,80 @@ def clean_currency_or_numeric_string(val: Any) -> Tuple[Any, bool, bool]:
     if not s:
         return np.nan, True, False
 
-    # Check if string matches typical currency or formatted numbers: e.g. "$1,250.50", "€ 1.250,50", "950"
-    cleaned = re.sub(r"[$\€\£\¥\s]", "", s)
+    # Check for accounting negative notation e.g. (1,250.00) or ($1,250.00)
+    is_negative = False
+    if s.startswith("(") and s.endswith(")"):
+        is_negative = True
+        s = s[1:-1].strip()
+    elif s.startswith("-"):
+        is_negative = True
+        s = s[1:].strip()
 
-    # US format: 1,234.56
-    if re.match(r"^-?\d{1,3}(,\d{3})*(\.\d+)?$", cleaned):
+    # Strip currency symbols and whitespace
+    cleaned = re.sub(r"[$\€\£\¥\s]", "", s)
+    if not cleaned:
+        return np.nan, True, False
+
+    # US format: 1,234.56 or 1,234
+    if re.match(r"^\d{1,3}(,\d{3})*(\.\d+)?$", cleaned):
         try:
             num = float(cleaned.replace(",", ""))
-            return num, (s != str(num)), False
-        except ValueError:
-            pass
-
-    # EU format: 1.234,56
-    if re.match(r"^-?\d{1,3}(\.\d{3})*(,\d+)?$", cleaned):
-        try:
-            standardized = cleaned.replace(".", "").replace(",", ".")
-            num = float(standardized)
+            if is_negative:
+                num = -num
             return num, True, False
         except ValueError:
             pass
 
-    # Simple decimal or integer string
+    # EU format: 1.234,56 or 1.234
+    if re.match(r"^\d{1,3}(\.\d{3})*(,\d+)?$", cleaned):
+        try:
+            standardized = cleaned.replace(".", "").replace(",", ".")
+            num = float(standardized)
+            if is_negative:
+                num = -num
+            return num, True, False
+        except ValueError:
+            pass
+
+    # Simple decimal or integer representation
     try:
         num = float(cleaned)
-        return num, (s != str(num)), False
+        if is_negative:
+            num = -num
+        return num, (str(val).strip() != str(num)), False
     except ValueError:
-        # Not a valid numeric representation
+        # Cannot be parsed as a valid numeric representation
         return val, False, True
 
 
 class DataProcessor:
     """
-    Conservative, deterministic data cleaning and validation engine.
-    Produces auditable metrics and a clean DataFrame.
+    Deterministic, auditable data cleaning and normalization engine.
+    Applies conservative transformations without destroying ambiguous data.
     """
 
-    def process(self, df_raw: pd.DataFrame, filename: str) -> Tuple[pd.DataFrame, ProcessingMetrics, List[str], List[str]]:
+    def process(
+        self, df_raw: pd.DataFrame, filename: str
+    ) -> tuple[pd.DataFrame, ProcessingMetrics, list[str], list[str]]:
+        """
+        Executes end-to-end cleaning pipeline on the input DataFrame.
+
+        Pipeline Stages:
+        1. Column header whitespace trimming
+        2. Dropping completely empty columns
+        3. Dropping completely empty rows
+        4. String cell whitespace normalization & CSV injection escaping
+        5. Column-specific domain normalization (Email, Name, Currency)
+        6. Deterministic exact row deduplication
+        7. Audit metrics compilation
+
+        Returns:
+            Tuple of (cleaned_df, metrics, changes_summary, warnings).
+        """
         start_time = time.perf_counter()
 
-        changes_summary: List[str] = []
-        warnings: List[str] = []
+        changes_summary: list[str] = []
+        warnings: list[str] = []
 
         rows_initial = len(df_raw)
         if rows_initial == 0:
@@ -175,25 +307,30 @@ class DataProcessor:
             changes_summary.append("Trimmed whitespace from column headers")
 
         # Step 2: Drop completely empty columns
-        empty_cols = [c for c in df.columns if df[c].isna().all() or (df[c].astype(str).str.strip() == "").all()]
+        empty_cols = [
+            c
+            for c in df.columns
+            if df[c].isna().all() or (df[c].astype(str).str.strip() == "").all()
+        ]
         columns_removed_empty = len(empty_cols)
         if columns_removed_empty > 0:
             df = df.drop(columns=empty_cols)
-            changes_summary.append(f"Removed {columns_removed_empty} completely empty column(s): {', '.join(empty_cols)}")
+            cols_str = ", ".join(empty_cols)
+            changes_summary.append(
+                f"Removed {columns_removed_empty} completely empty column(s): {cols_str}"
+            )
 
         # Step 3: Drop completely empty rows
-        # A row is completely empty if all values are NaN or only whitespace strings
         is_empty_row = df.apply(
             lambda row: row.isna().all() or all(pd.isna(v) or str(v).strip() == "" for v in row),
-            axis=1
+            axis=1,
         )
         rows_removed_empty = int(is_empty_row.sum())
         if rows_removed_empty > 0:
             df = df[~is_empty_row].reset_index(drop=True)
             changes_summary.append(f"Removed {rows_removed_empty} completely empty row(s)")
 
-        # Step 4: String whitespace normalization & CSV injection escaping
-        # Normalize repeated internal whitespace and strip leading/trailing spaces
+        # Step 4: String cell whitespace normalization & CSV injection neutralization
         whitespace_trimmed_count = 0
         sanitized_formulas_count = 0
 
@@ -206,7 +343,6 @@ class DataProcessor:
                         continue
 
                     val_str = str(val)
-                    # Strip leading/trailing and collapse multi-space
                     stripped = val_str.strip()
                     collapsed = re.sub(r"[ \t]+", " ", stripped)
 
@@ -223,10 +359,14 @@ class DataProcessor:
 
         if whitespace_trimmed_count > 0:
             fields_normalized_count += whitespace_trimmed_count
-            changes_summary.append(f"Cleaned whitespace across {whitespace_trimmed_count} text cell(s)")
+            changes_summary.append(
+                f"Cleaned whitespace across {whitespace_trimmed_count} text cell(s)"
+            )
 
         if sanitized_formulas_count > 0:
-            changes_summary.append(f"Sanitized {sanitized_formulas_count} cell(s) starting with formula characters")
+            changes_summary.append(
+                f"Sanitized {sanitized_formulas_count} cell(s) starting with formula characters"
+            )
 
         # Step 5: Column-specific intelligent normalization & validation
         for col in df.columns:
@@ -243,7 +383,6 @@ class DataProcessor:
                         new_emails.append(val)
                         continue
 
-                    # Lowercase normalization
                     lowered = val_s.lower()
                     if lowered != val_s:
                         normalized_emails += 1
@@ -252,7 +391,6 @@ class DataProcessor:
                     else:
                         new_emails.append(val_s)
 
-                    # Validation
                     if not EMAIL_REGEX.match(lowered):
                         invalid_emails_count += 1
                         invalid_values_count += 1
@@ -262,13 +400,15 @@ class DataProcessor:
 
                 df[col] = new_emails
                 if normalized_emails > 0:
-                    changes_summary.append(f"Normalized {normalized_emails} email address(es) to lowercase in '{col}'")
+                    changes_summary.append(
+                        f"Normalized {normalized_emails} email address(es) to lowercase in '{col}'"
+                    )
 
             # Name columns (Title Case if all-upper or all-lower)
             elif is_name_column(col):
                 names_formatted = 0
                 new_names = []
-                for idx, val in enumerate(df[col]):
+                for _idx, val in enumerate(df[col]):
                     if pd.isna(val) or val is None:
                         new_names.append(val)
                         continue
@@ -277,7 +417,6 @@ class DataProcessor:
                         new_names.append(val)
                         continue
 
-                    # If string is entirely uppercase or lowercase and has letters, normalize to Title Case
                     if (val_s.isupper() or val_s.islower()) and re.search(r"[a-zA-Z]", val_s):
                         title_case = val_s.title()
                         if title_case != val_s:
@@ -291,7 +430,9 @@ class DataProcessor:
 
                 df[col] = new_names
                 if names_formatted > 0:
-                    changes_summary.append(f"Normalized casing for {names_formatted} name(s) in '{col}'")
+                    changes_summary.append(
+                        f"Normalized casing for {names_formatted} name(s) in '{col}'"
+                    )
 
             # Financial / Numeric columns
             elif is_numeric_candidate_column(col):
@@ -308,20 +449,20 @@ class DataProcessor:
                         fields_normalized_count += 1
                     if is_invalid:
                         invalid_values_count += 1
-                        warnings.append(f"Row {idx + 1}: Unrecognized numeric format '{val}' in column '{col}'")
+                        warnings.append(
+                            f"Row {idx + 1}: Unrecognized numeric format '{val}' in column '{col}'"
+                        )
 
                     new_nums.append(cleaned_num)
 
-                # Assign converted values
                 df[col] = new_nums
-                # Attempt conversion to numeric type if possible
-                try:
+                with contextlib.suppress(ValueError, TypeError):
                     df[col] = pd.to_numeric(df[col])
-                except (ValueError, TypeError):
-                    pass
 
                 if numeric_converted > 0:
-                    changes_summary.append(f"Normalized {numeric_converted} currency/numeric value(s) in '{col}'")
+                    changes_summary.append(
+                        f"Normalized {numeric_converted} currency/numeric value(s) in '{col}'"
+                    )
 
         # Step 6: Deduplication (Exact duplicate rows on normalized dataset)
         duplicate_mask = df.duplicated(keep="first")
@@ -330,12 +471,14 @@ class DataProcessor:
             df = df.drop_duplicates(keep="first").reset_index(drop=True)
             changes_summary.append(f"Removed {duplicate_rows_removed} exact duplicate row(s)")
 
-        # Step 7: Calculate final counts & metrics
+        # Step 7: Calculate final metrics
         rows_final = len(df)
         null_values_count = int(df.isna().sum().sum())
 
         if invalid_emails_count > 0:
-            changes_summary.append(f"Flagged {invalid_emails_count} potentially invalid email address(es)")
+            changes_summary.append(
+                f"Flagged {invalid_emails_count} potentially invalid email address(es)"
+            )
 
         execution_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
 
@@ -350,6 +493,14 @@ class DataProcessor:
             fields_normalized=fields_normalized_count,
             null_values_count=null_values_count,
             processing_time_ms=execution_time_ms,
+        )
+
+        logger.info(
+            "Completed processing for '%s': %d initial -> %d final rows in %.2f ms",
+            filename,
+            rows_initial,
+            rows_final,
+            execution_time_ms,
         )
 
         return df, metrics, changes_summary, warnings

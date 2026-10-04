@@ -1,10 +1,13 @@
-from typing import Any, Dict, List
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class ProcessingMetrics(BaseModel):
-    rows_initial: int = Field(..., description="Total rows in original input")
-    rows_final: int = Field(..., description="Cleaned rows retained")
+    """Auditable quantitative metrics summarizing data pipeline execution."""
+
+    rows_initial: int = Field(..., description="Total rows in original input file")
+    rows_final: int = Field(..., description="Cleaned rows retained in output")
     rows_removed_empty: int = Field(0, description="Count of completely empty rows dropped")
     columns_removed_empty: int = Field(0, description="Count of completely empty columns dropped")
     duplicate_rows_removed: int = Field(0, description="Exact duplicate rows eliminated")
@@ -16,19 +19,23 @@ class ProcessingMetrics(BaseModel):
 
 
 class ProcessingResult(BaseModel):
-    file_id: str
-    original_filename: str
-    processed_at: str
-    metrics: ProcessingMetrics
-    changes_summary: List[str]
-    warnings: List[str]
-    columns: List[str]
-    sample_preview: List[Dict[str, Any]]
-    csv_download_url: str
-    xlsx_download_url: str
+    """Full API response payload after processing a dataset."""
+
+    file_id: str = Field(..., description="Unique UUID for downloading processed artifacts")
+    original_filename: str = Field(..., description="Original name of the uploaded file")
+    processed_at: str = Field(..., description="ISO 8601 UTC timestamp of completion")
+    metrics: ProcessingMetrics = Field(..., description="Quantitative execution metrics")
+    changes_summary: list[str] = Field(..., description="Itemized audit list of transformations")
+    warnings: list[str] = Field(..., description="Data quality issues flagged for review")
+    columns: list[str] = Field(..., description="Cleaned output column names")
+    sample_preview: list[dict[str, Any]] = Field(..., description="First records preview")
+    csv_download_url: str = Field(..., description="Relative download URL for clean CSV")
+    xlsx_download_url: str = Field(..., description="Relative download URL for clean Excel")
 
 
 class HealthStatus(BaseModel):
-    status: str
-    version: str
-    service: str
+    """Health check response schema."""
+
+    status: str = Field(..., description="Service status indicator")
+    version: str = Field(..., description="API semantic version")
+    service: str = Field(..., description="Service identifier")
