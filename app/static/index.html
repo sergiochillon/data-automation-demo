@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Processing Tool | Automated Data Cleaning & Validation</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Top Navigation Bar -->
+    <header class="top-nav">
+      <div class="nav-container">
+        <div class="brand">
+          <svg class="brand-icon" viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+          </svg>
+          <span class="brand-title">Data Processing Tool</span>
+        </div>
+        <div class="nav-meta">
+          <span class="system-badge">System Status: Operational</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="main-content">
+      <div class="content-container">
+        
+        <!-- Header Section -->
+        <section class="page-header">
+          <h1 class="page-title">Clean and validate your business data</h1>
+          <p class="page-subtitle">
+            Upload a CSV or Excel file to clean common data-quality issues, eliminate exact duplicates, 
+            normalize inconsistent fields, and export a structured dataset.
+          </p>
+        </section>
+
+        <!-- Notification Banner -->
+        <div id="statusBanner" class="status-banner" style="display: none;" role="alert">
+          <div class="status-banner-content">
+            <span id="statusIcon" class="status-icon"></span>
+            <span id="statusMessage" class="status-text"></span>
+          </div>
+          <button id="dismissStatusBtn" class="btn-dismiss" aria-label="Dismiss message">&times;</button>
+        </div>
+
+        <!-- Section 1: Upload Workspace -->
+        <section id="uploadSection" class="workspace-card">
+          <div class="card-header">
+            <h2 class="card-title">1. Upload Source File</h2>
+            <span class="card-hint">Accepted formats: .csv, .xlsx &bull; Maximum size: 15 MB</span>
+          </div>
+
+          <div class="card-body">
+            <div id="dropZone" class="drop-zone">
+              <input type="file" id="fileInput" class="file-input" accept=".csv, .xlsx" aria-label="Choose file to upload">
+              <div class="drop-zone-content">
+                <svg class="upload-icon" viewBox="0 0 24 24" width="40" height="40" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p class="drop-instruction">
+                  <span class="drop-action">Click to browse</span> or drag and drop your file here
+                </p>
+                <p class="drop-subtext">Automated deduplication, format trimming, and email validation</p>
+              </div>
+            </div>
+
+            <!-- Selected File Indicator -->
+            <div id="selectedFileInfo" class="selected-file-panel" style="display: none;">
+              <div class="file-meta">
+                <svg class="file-type-icon" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <div class="file-details">
+                  <span id="fileNameDisplay" class="file-name">filename.csv</span>
+                  <span id="fileSizeDisplay" class="file-size">0 KB</span>
+                </div>
+              </div>
+              <button id="clearFileBtn" class="btn btn-secondary btn-sm" type="button">Remove</button>
+            </div>
+
+            <!-- Actions Bar -->
+            <div class="upload-actions">
+              <button id="processBtn" class="btn btn-primary" type="button" disabled>
+                <span id="processBtnText">Process Dataset</span>
+                <span id="processSpinner" class="spinner" style="display: none;"></span>
+              </button>
+              <button id="loadDemoBtn" class="btn btn-secondary" type="button">
+                Load Demo Dataset (customers_messy.csv)
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 2: Results & Audit Trail -->
+        <section id="resultsSection" class="workspace-card" style="display: none;">
+          <div class="card-header border-bottom">
+            <div>
+              <h2 class="card-title">2. Processing Results & Audit Log</h2>
+              <span id="reportFileLabel" class="card-hint">Source: customers_messy.csv</span>
+            </div>
+            <div class="results-top-actions">
+              <button id="newFileBtn" class="btn btn-secondary btn-sm" type="button">Process Another File</button>
+            </div>
+          </div>
+
+          <div class="card-body">
+            <!-- Key Metrics Grid -->
+            <div class="metrics-grid">
+              <div class="metric-card">
+                <span class="metric-label">Rows Processed</span>
+                <span id="metricRowsInitial" class="metric-value">0</span>
+                <span class="metric-subtext">Original rows in input</span>
+              </div>
+              <div class="metric-card highlight-metric">
+                <span class="metric-label">Clean Rows Retained</span>
+                <span id="metricRowsFinal" class="metric-value">0</span>
+                <span class="metric-subtext">Ready for export</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Duplicates Eliminated</span>
+                <span id="metricDuplicates" class="metric-value">0</span>
+                <span class="metric-subtext">Exact identical rows</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Empty Rows Dropped</span>
+                <span id="metricEmptyRows" class="metric-value">0</span>
+                <span class="metric-subtext">Completely blank records</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Fields Normalized</span>
+                <span id="metricNormalized" class="metric-value">0</span>
+                <span class="metric-subtext">Casing, spaces & numbers</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-label">Issues Flagged</span>
+                <span id="metricIssues" class="metric-value">0</span>
+                <span class="metric-subtext">Invalid emails or formats</span>
+              </div>
+            </div>
+
+            <!-- Audit Changes & Warnings -->
+            <div class="audit-columns">
+              <div class="audit-panel">
+                <h3 class="panel-heading">Changes Applied</h3>
+                <ul id="changesList" class="audit-list check-list">
+                  <!-- Injected dynamically -->
+                </ul>
+              </div>
+
+              <div class="audit-panel">
+                <h3 class="panel-heading">Data Quality Warnings</h3>
+                <ul id="warningsList" class="audit-list warning-list">
+                  <!-- Injected dynamically -->
+                </ul>
+              </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="export-banner">
+              <div class="export-info">
+                <span class="export-title">Export Cleaned Dataset</span>
+                <span class="export-desc">Download sanitized file in your preferred business format.</span>
+              </div>
+              <div class="export-buttons">
+                <a id="downloadCsvBtn" href="#" class="btn btn-primary" download="cleaned_data.csv">
+                  Download .CSV
+                </a>
+                <a id="downloadXlsxBtn" href="#" class="btn btn-secondary" download="cleaned_data.xlsx">
+                  Download Excel (.XLSX)
+                </a>
+              </div>
+            </div>
+
+            <!-- Cleaned Data Preview Table -->
+            <div class="table-preview-section">
+              <div class="preview-header">
+                <h3 class="panel-heading">Data Preview (First 10 records)</h3>
+                <span id="previewMeta" class="preview-meta">Showing 10 clean rows</span>
+              </div>
+              <div class="table-scroll-wrapper">
+                <table id="previewTable" class="data-table">
+                  <thead id="previewTableHead">
+                    <!-- Column headers -->
+                  </thead>
+                  <tbody id="previewTableBody">
+                    <!-- Data rows -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-container">
+        <span>Data Processing Tool &bull; Python Automation Demo</span>
+        <span class="footer-meta">FastAPI &bull; pandas &bull; openpyxl &bull; Deterministic Processing</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Automation Pipeline | Portfolio Showcase</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Fixed 16:9 Canvas (1280x720) optimized for Fiverr portfolio image */
+    .fiverr-canvas {
+      width: 1280px;
+      height: 720px;
+      background-color: #f8fafc;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 16:9 Portfolio Card Canvas -->
+  <div class="fiverr-canvas p-14 select-none">
+    
+    <!-- Top Header -->
+    <header class="flex items-center justify-between border-b border-slate-200/80 pb-6">
+      <div>
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+          <span class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Workflow Architecture</span>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-900 tracking-tight">End-to-End Data Processing Pipeline</h1>
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-xs font-medium text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-md shadow-xs">
+          Production Ready • 100% Deterministic
+        </span>
+      </div>
+    </header>
+
+    <!-- Main 3-Block Flow -->
+    <main class="grid grid-cols-[1fr_auto_1.15fr_auto_1fr] items-center gap-4 my-auto">
+      
+      <!-- 01 — INPUT -->
+      <div class="bg-white rounded-xl border border-slate-200/90 p-7 shadow-xs flex flex-col justify-between h-[360px]">
+        <div>
+          <!-- Step indicator -->
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-semibold text-slate-400 tracking-wider">01 — INPUT</span>
+            <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+          </div>
+
+          <h2 class="text-xl font-bold text-slate-900 mb-6 tracking-tight">Unstructured Data</h2>
+
+          <!-- Elements List -->
+          <ul class="space-y-3.5">
+            <li class="flex items-center gap-3 text-slate-700 font-medium text-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              <span>Messy CSV / Excel</span>
+            </li>
+            <li class="flex items-center gap-3 text-slate-700 font-medium text-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              <span>REST APIs</span>
+            </li>
+            <li class="flex items-center gap-3 text-slate-700 font-medium text-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+              <span>Web Scraping</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Tag -->
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+          <span class="text-[11px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded">
+            INPUT
+          </span>
+          <span class="text-xs text-slate-400">Raw Sources</span>
+        </div>
+      </div>
+
+      <!-- Arrow 1 -> 2 -->
+      <div class="flex items-center justify-center px-1 text-slate-400">
+        <svg class="w-6 h-6 stroke-slate-400" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="12" x2="20" y2="12"></line>
+          <polyline points="14 6 20 12 14 18"></polyline>
+        </svg>
+      </div>
+
+      <!-- 02 — PROCESS (Hero Card with subtle emphasis) -->
+      <div class="bg-white rounded-xl border-2 border-blue-600/30 p-8 shadow-md shadow-blue-500/5 flex flex-col justify-between h-[385px] relative ring-1 ring-blue-500/10">
+        <!-- Accent pill on top right -->
+        <div class="absolute -top-3 right-6 bg-blue-600 text-white text-[10px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full shadow-xs">
+          Automation Engine
+        </div>
+
+        <div>
+          <!-- Step indicator -->
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-bold text-blue-600 tracking-wider">02 — PROCESS</span>
+            <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+              <svg class="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <h2 class="text-2xl font-bold text-slate-900 mb-6 tracking-tight flex items-center gap-2">
+            <span>Python Engine</span>
+          </h2>
+
+          <!-- Elements List -->
+          <ul class="space-y-3.5">
+            <li class="flex items-center gap-3 text-slate-800 font-semibold text-sm">
+              <svg class="w-4 h-4 text-blue-600 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>Deduplication</span>
+            </li>
+            <li class="flex items-center gap-3 text-slate-800 font-semibold text-sm">
+              <svg class="w-4 h-4 text-blue-600 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>Format Normalization</span>
+            </li>
+            <li class="flex items-center gap-3 text-slate-800 font-semibold text-sm">
+              <svg class="w-4 h-4 text-blue-600 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>Schema Validation</span>
+            </li>
+            <li class="flex items-center gap-3 text-slate-800 font-semibold text-sm">
+              <svg class="w-4 h-4 text-blue-600 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span>Formula Sanitization</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Tag -->
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+          <span class="text-[11px] font-bold tracking-wider text-blue-700 bg-blue-50 border border-blue-200/80 px-2.5 py-1 rounded">
+            PROCESS
+          </span>
+          <span class="text-xs font-medium text-blue-600/80">Pandas • Automation</span>
+        </div>
+      </div>
+
+      <!-- Arrow 2 -> 3 -->
+      <div class="flex items-center justify-center px-1 text-slate-400">
+        <svg class="w-6 h-6 stroke-slate-400" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="4" y1="12" x2="20" y2="12"></line>
+          <polyline points="14 6 20 12 14 18"></polyline>
+        </svg>
+      </div>
+
+      <!-- 03 — OUTPUT -->
+      <div class="bg-white rounded-xl border border-slate-200/90 p-7 shadow-xs flex flex-col justify-between h-[360px]">
+        <div>
+          <!-- Step indicator -->
+          <div class="flex items-center justify-between mb-4">
+            <span class="text-xs font-semibold text-slate-400 tracking-wider">03 — OUTPUT</span>
+            <div class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <h2 class="text-xl font-bold text-slate-900 mb-6 tracking-tight">Clean Deliverable</h2>
+
+          <!-- Elements List -->
+          <ul class="space-y-3.5">
+            <li class="flex items-center gap-3 text-slate-700 font-medium text-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>Sanitized .xlsx / .csv</span>
+            </li>
+            <li class="flex items-center gap-3 text-slate-700 font-medium text-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>Audit Log</span>
+            </li>
+            <li class="flex items-center gap-3 text-slate-700 font-medium text-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              <span>Ready for Production</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Tag -->
+        <div class="pt-4 border-t border-slate-100 flex items-center justify-between">
+          <span class="text-[11px] font-bold tracking-wider text-slate-600 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded">
+            OUTPUT
+          </span>
+          <span class="text-xs text-slate-400">Structured Dataset</span>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Bottom Footer Tech Stack -->
+    <footer class="pt-6 border-t border-slate-200/80 flex items-center justify-between text-xs font-medium text-slate-500">
+      <div class="flex items-center gap-2 tracking-wide">
+        <span class="font-semibold text-slate-700">Python</span>
+        <span>•</span>
+        <span>Web Scraping</span>
+        <span>•</span>
+        <span>APIs</span>
+        <span>•</span>
+        <span>Automation</span>
+        <span>•</span>
+        <span>Data Processing</span>
+      </div>
+      <div class="text-slate-400 text-[11px] font-mono">
+        pipeline.py &bull; v1.0
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>
