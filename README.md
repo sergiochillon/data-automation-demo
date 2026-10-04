@@ -1,6 +1,6 @@
-# Data Processing Tool (`data-automation-demo`)
+# Data Processing Tool
 
-> A deterministic Python pipeline and REST API for automated cleaning, validation, and normalization of business CSV and Excel (`.xlsx`) datasets.
+A deterministic Python data cleaning pipeline and REST API for standardizing, validating, and repairing business CSV and Excel (`.xlsx`) datasets.
 
 [![CI Pipeline](https://github.com/your-username/data-automation-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/your-username/data-automation-demo/actions)
 [![Python 3.12](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
@@ -11,76 +11,77 @@
 
 ---
 
-## 1. What is this project?
+## What is this project?
 
-In real-world business environments, spreadsheets exported from CRM platforms, ERPs, accounting software, and web scrapers often arrive corrupted with data-quality issues:
+In administrative and operational workflows, spreadsheets exported from CRMs, ERPs, accounting software, or web forms frequently contain quality defects:
 
-- Inconsistent uppercase/lowercase names and email addresses.
-- Redundant spaces, trailing tabs, and blank lines.
-- International currency and decimal notation clashes (e.g., European `1.250,50` vs. US `1,250.50`).
-- Completely blank rows and columns created by human data-entry or system exports.
-- Exact duplicate records skewing reporting and downstream automations.
-- CSV Formula Injection vulnerabilities (DDE attacks) that execute code when opened in Excel.
+- Mixed or all-caps casing in names and email addresses.
+- Redundant leading, trailing, or repeated whitespace.
+- Clashing numeric and currency formats (such as European `1.250,50` vs. US `1,250.50`).
+- Completely blank rows and columns.
+- Exact duplicate records that distort metrics.
+- CSV formula injection vulnerabilities (DDE formula characters) that can execute commands when opened in desktop spreadsheet applications.
 
-**Data Processing Tool** is a lightweight, auditable data engineering tool designed to ingest messy CSV and Excel files, execute deterministic cleaning operations, flag unrecoverable issues without silent data corruption, and export sanitized production-ready files alongside a complete audit log.
+**Data Processing Tool** provides a deterministic backend pipeline that accepts uploaded `.csv` or `.xlsx` files, applies explicit normalization rules, flags unparseable records without discarding them, and generates clean downloadable files accompanied by an itemized audit log.
 
 ---
 
-## 2. Visual Architecture & Pipeline Flow
+## Visual Architecture & Pipeline Flow
 
-The transformation engine operates sequentially with strict synchronization barriers:
+The processing pipeline executes sequential cleaning steps:
 
 ```
-┌─────────────────────────┐
-│     RAW INPUT DATA      │
-│  - Messy CSV / .xlsx    │
-│  - Varying encodings    │
-│  - Semicolon/Tab/Comma  │
-└────────────┬────────────┘
-             │
-             ▼
+┌─────────────────────────────────┐
+│         RAW INPUT FILE          │
+│    - .csv or .xlsx              │
+│    - Delimiter: comma, semi, tab│
+│    - Encoding: UTF-8, Latin-1   │
+└────────────────┬────────────────┘
+                 │
+                 ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                   PYTHON CLEANING ENGINE                    │
+│                   DATA CLEANING PIPELINE                    │
 │                                                             │
 │  1. Format & Encoding Sniffing (UTF-8, UTF-8-SIG, Latin-1)  │
-│  2. Structural Pruning (Drop blank rows & blank columns)    │
-│  3. Text Normalization (Strip/collapse internal whitespace) │
-│  4. Formula Injection Neutralization (OWASP single-quote)   │
-│  5. Domain Validation:                                      │
-│     - Email lowercasing & RFC 5322 regex validation         │
-│     - Proper name title-casing (preserves mixed-case)       │
-│     - Financial currency standardizing (US, EU, accounting) │
-│  6. Exact Deduplication (First-occurrence retention)        │
-└────────────┬────────────────────────────────────────────────┘
-             │
-             ▼
-┌─────────────────────────┐
-│    CLEAN DELIVERABLE    │
-│  - Cleaned CSV (.csv)   │
-│  - Cleaned Excel (.xlsx)│
-│  - Quantitative Metrics │
-│  - Itemized Audit Trail │
-└─────────────────────────┘
+│  2. Structural Cleanup (Drop blank rows & blank columns)    │
+│  3. Text Trimming (Strip spaces, collapse multi-spaces)     │
+│  4. Formula Injection Sanitization (Prefix unsafe formulas) │
+│  5. Field-Specific Rules:                                   │
+│     - Email lowercasing and regex syntax check              │
+│     - Name title-casing (preserves mixed-case names)        │
+│     - Currency & numeric parsing (US, EU, negative values)  │
+│  6. Exact Deduplication (First occurrence retained)         │
+│  7. Audit Metrics & Warning Compilation                     │
+└────────────────┬────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────┐
+│        CLEAN DELIVERABLES       │
+│    - Normalized CSV (.csv)      │
+│    - Normalized Excel (.xlsx)   │
+│    - Quantitative audit report  │
+└─────────────────────────────────┘
 ```
 
 ---
 
-## 3. Portfolio Visuals
+## Portfolio Visuals
 
-The project includes pre-built presentation materials for portfolio demonstration and client previews:
+The repository includes visual reference assets illustrating the pipeline architecture and a before-and-after data transformation:
 
-| Pipeline Architecture (`pipeline.png`) | Transformation Before & After (`before-after.png`) |
+| Pipeline Overview | Data Transformation Comparison |
 | :---: | :---: |
-| ![Pipeline Architecture](pipeline.png) | ![Before After Transformation](before-after.png) |
-| *Visual overview of Input, Python Processing Engine, and Clean Outputs.* | *Side-by-side record comparison from the real demo dataset.* |
+| ![Pipeline Architecture](pipeline.png) | ![Before and After Transformation](before-after.png) |
+| *Three-stage data processing pipeline.* | *Side-by-side comparison using records from the demo dataset.* |
 
 ---
 
-## 4. Real Example from Demo Data
+## Real Example
 
-The repository includes a synthetic yet realistic business dataset (`demo_data/customers_messy.csv`) containing 31 rows with deliberate quality defects.
+The project includes a sample messy dataset (`demo_data/customers_messy.csv`) containing 31 rows with deliberate formatting inconsistencies.
 
-### Input Sample (`customers_messy.csv`)
+### Sample Input (`demo_data/customers_messy.csv`)
+
 ```csv
 customer_id,name,email,city,country,phone,revenue,status,notes_internal
 CUST-1002,Helios Solar Solutions,info@heliossolar.de,Munich,Germany,+49-89-555-0199,€ 8.920,00,Active,
@@ -93,62 +94,59 @@ CUST-1012,=SUM(A1:A50),finance@riskycorp.com,Dublin,Ireland,+353-1-555-0189,$15,
 CUST-1020,Beacon Pharma Labs,procurement@beaconpharma.com,Boston,United States,+1-617-555-0193,UNKNOWN_PENDING,Under Review,
 ```
 
-### Result After Processing
-- **Empty Rows**: 3 completely blank rows dropped.
-- **Empty Columns**: 1 completely blank column (`notes_internal`) dropped.
-- **Deduplication**: 3 exact duplicates dropped (e.g., redundant row for `CUST-1004`).
-- **Whitespace Collapsed**: `"  Apex   Industrial Supplies  "` &rarr; `"Apex Industrial Supplies"`.
-- **Casing Normalized**: `"NORDIC DATA LABS"` &rarr; `"Nordic Data Labs"`; `"SUPPORT@NORDICDATALABS.SE"` &rarr; `"support@nordicdatalabs.se"`.
-- **Currency Standardized**: `"€ 8.920,00"` &rarr; `8920.0`; `" 18,200.50 "` &rarr; `18200.5`.
-- **Formula Injection Sanitized**: `"=SUM(A1:A50)"` &rarr; `'=SUM(A1:A50)`.
-- **Quality Warning Logged**: Row 7 (`maritime_sales_at_meridian.com`) flagged as invalid email; Row 20 (`UNKNOWN_PENDING`) flagged as non-numeric while preserving the original string.
-- **Final Output**: Exactly 25 clean rows ready for production database import or BI reporting.
+### Applied Changes & Output
+
+- **Empty Rows**: 3 completely blank rows removed.
+- **Empty Columns**: 1 empty column (`notes_internal`) removed.
+- **Deduplication**: 3 exact duplicate rows removed.
+- **Whitespace**: Internal repeated spaces collapsed (e.g. `"  Apex   Industrial Supplies  "` becomes `"Apex Industrial Supplies"`).
+- **Casing**: `"NORDIC DATA LABS"` converted to Title Case (`"Nordic Data Labs"`); `"SUPPORT@NORDICDATALABS.SE"` normalized to lowercase.
+- **Currency & Numbers**: `"€ 8.920,00"` converted to `8920.0`; `" 18,200.50 "` converted to `18200.5`.
+- **Formula Injection**: `"=SUM(A1:A50)"` neutralized to `'=SUM(A1:A50)`.
+- **Quality Warnings**: Non-standard values are retained and flagged for review:
+  - Row 6: `maritime_sales_at_meridian.com` (missing `@`).
+  - Row 7: `reservations@starlight` (missing top-level domain).
+  - Row 22: `UNKNOWN_PENDING` (non-numeric string in revenue column).
+- **Final Result**: 25 clean rows ready for export.
 
 ---
 
-## 5. Key Capabilities & Technical Features
+## Key Capabilities
 
-### 1. Robust File Ingestion
-- Ingests delimited files (`.csv`) and modern Excel spreadsheets (`.xlsx`).
-- Automatic text encoding detection with fallbacks: `UTF-8`, `UTF-8 with BOM` (`utf-8-sig`), `Latin-1` (`ISO-8859-1`), and `Windows CP1252`.
-- Delimiter sniffing handling comma (`,`), semicolon (`;`), tab (`\t`), and pipe (`|`).
-- Binary file detection (rejects null-byte payload injections).
+### Ingestion & Format Support
+- Supports `.csv` and modern Excel `.xlsx` files.
+- Automatically attempts delimiter detection (comma `,`, semicolon `;`, tab `\t`, pipe `|`).
+- Falls back through text encodings: `utf-8-sig` (with BOM), `utf-8`, `latin-1` (`iso-8859-1`), and `cp1252`.
+- Detects and rejects binary files containing null bytes when uploaded as CSV.
 
-### 2. Structural Pruning & Deduplication
-- Drops rows that contain only NaN values or whitespace strings.
-- Detects and prunes columns containing no informational value.
-- Cleans whitespace from header column names.
-- Executes deterministic exact row deduplication (retaining first occurrence).
+### Data Cleaning & Normalization
+- **Structure**: Drops rows and columns that are entirely blank or contain only whitespace. Trims leading and trailing spaces from header names.
+- **Whitespace**: Strips leading/trailing spaces and collapses consecutive internal whitespace characters into single spaces.
+- **Email Hygiene**: Normalizes email addresses to lowercase and runs a practical regex syntax check (`^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`).
+- **Name Casing**: Converts uppercase or lowercase names to Title Case while preserving intentional mixed casing (such as `McDonald` or `van der Waals`).
+- **Numbers & Currency**: Strips currency signs (`$`, `€`, `£`, `¥`), handles both US decimal format (`1,250.50`) and European format (`1.250,50`), and parses negative financial numbers (`-$450.25` or `($1,250.00)`).
+- **Deduplication**: Drops exact duplicate rows while preserving the first instance.
 
-### 3. Smart Domain Cleaning
-- **Emails**: Strips spaces, normalizes to lowercase, and validates against RFC 5322 regex.
-- **Names**: Normalizes all-caps or all-lowercase entries to Title Case while respecting mixed-case names (e.g., `McDonald`, `van der Waals`, `O'Connor`).
-- **Currency & Numbers**: Parses currency symbols (`$`, `€`, `£`, `¥`), US notation (`1,250.50`), European notation (`1.250,50`), and negative accounting notation (`($1,250.00)` or `-$1,250.00`).
-- **Conservative Mutation Strategy**: If a value cannot be parsed unambiguously (e.g., `PENDING_PAYMENT` in a revenue column), it is retained and flagged in the audit warnings rather than silently deleted or replaced with zero.
-
-### 4. Enterprise Security Guardrails
-- **CSV Formula Injection (DDE)**: Cells starting with `=`, `+`, `-`, `@`, `\t`, or `\r` are neutralized with a leading single quote (`'`), excluding legitimate numbers and international phone numbers.
-- **Path Traversal Defense**: Filenames are sanitized, and all disk retrievals verify that the resolved path stays within the base storage directory.
-- **Streaming Upload Guard**: Uploads are read in bounded 1 MB chunks to prevent memory exhaustion (DoS), enforcing a 15 MB maximum payload.
-- **Session Isolation**: Download artifacts are addressed via non-sequential UUID4 tokens.
+### Security & Input Handling
+- **CSV Formula Injection**: Detects string cells beginning with formula trigger characters (`=`, `+`, `-`, `@`, `\t`, `\r`). Unless the string is a valid numeric value or an international phone number, a leading single quote (`'`) is prepended to prevent spreadsheet execution.
+- **Filename Validation & Path Traversal Defense**: Rejects filenames with directory separators (`/`, `\`, `..`) or null bytes.
+- **Upload Size Ceiling**: Enforces a configurable 15 MB maximum file size (`MAX_UPLOAD_SIZE_MB`).
+- **Streaming Upload**: Streams incoming request data in 1 MB chunks to prevent unbounded memory usage during uploads.
+- **Artifact Access**: Stores export files under randomly generated UUID4 directory names. File retrieval checks verify that requested paths remain strictly within the target storage directory using `is_relative_to`.
+- **Temporary File Lifecycle**: Automatically deletes processed file directories older than a configurable retention window (default 3600 seconds).
 
 ---
 
-## 6. Technical Stack & Rationale
+## Technical Stack
 
-| Layer | Technology | Engineering Rationale |
-| :--- | :--- | :--- |
-| **Runtime** | Python 3.12+ | Modern typing (`list[T]`, `X \| Y`), high performance, robust standard library. |
-| **API Framework** | FastAPI + Uvicorn | High-throughput asynchronous routing, automatic OpenAPI/Swagger documentation, strict request validation via Pydantic v2. |
-| **Data Engine** | pandas + openpyxl | Industry-standard vectorized processing, reliable CSV parsing, full `.xlsx` workbook manipulation. |
-| **Validation** | Pydantic v2 | Strict serialization and typing for quantitative metrics, audit results, and health checks. |
-| **Frontend** | Vanilla JS, HTML5, CSS3 | Zero build step, no npm/node dependency overhead, fast browser rendering, clean B2B layout. |
-| **Quality & Linting** | Ruff + Pytest | Blazing-fast linting and code formatting; 40+ unit and integration tests covering edge cases. |
-| **Containerization** | Docker + Compose | Multi-stage, non-root user (`appuser`), internal Python healthcheck, reproducible deployment. |
+- **Backend**: Python 3.12+, FastAPI, Uvicorn, pandas, openpyxl, Pydantic v2.
+- **Frontend**: Semantic HTML5, CSS3, Vanilla JavaScript (no build step or frontend framework).
+- **Code Quality**: Ruff (linter and formatter), pytest, HTTPX (TestClient).
+- **Deployment**: Docker, Docker Compose (runs as non-root user `appuser` with a Python-based healthcheck).
 
 ---
 
-## 7. Project Structure
+## Project Structure
 
 ```text
 data-automation-demo/
@@ -157,45 +155,45 @@ data-automation-demo/
 │       └── ci.yml               # GitHub Actions CI workflow (Ruff + Pytest)
 ├── app/
 │   ├── __init__.py
-│   ├── config.py                # Environment settings, limits, and logging
-│   ├── main.py                  # FastAPI application, routing, and lifecycle
-│   ├── models.py                # Pydantic schemas (metrics, processing results)
-│   ├── processor.py             # Deterministic data cleaning and validation engine
-│   ├── security.py              # Formula injection escaping, UUID, filename validation
-│   ├── storage.py               # Temporary artifact persistence and session cleanup
+│   ├── config.py                # Paths, upload limits, logging setup
+│   ├── main.py                  # FastAPI application, routing, lifespan
+│   ├── models.py                # Pydantic schemas (metrics, results, health)
+│   ├── processor.py             # Data cleaning pipeline and transformation rules
+│   ├── security.py              # Formula escaping, UUID and filename checks
+│   ├── storage.py               # Temporary artifact persistence and cleanup
 │   └── static/
 │       ├── css/
-│       │   └── style.css        # Clean B2B interface styling
+│       │   └── style.css        # Clean stylesheet
 │       ├── js/
 │       │   └── app.js           # Vanilla JavaScript UI controller
-│       └── index.html           # Single-page application interface
+│       └── index.html           # Single-page interface
 ├── demo_data/
-│   ├── generate_demo_data.py    # Reproducible dataset generator script
+│   ├── generate_demo_data.py    # Demo data generator script
 │   ├── customers_messy.csv      # Sample messy CSV dataset
 │   └── customers_messy.xlsx     # Sample messy Excel dataset
 ├── storage/
-│   └── processed/               # Local artifact directory (gitignored)
+│   └── processed/               # Local processed files directory (.gitignore)
 ├── tests/
 │   ├── __init__.py
-│   ├── conftest.py              # Pytest fixtures and mock file generators
-│   ├── test_api.py              # End-to-end API integration tests
-│   ├── test_processor.py        # Transformation and encoding unit tests
-│   ├── test_security.py         # Security sanitization and boundary tests
-│   └── test_storage.py          # Storage manager and expiration cleanup tests
-├── Dockerfile                   # Hardened non-root production container
+│   ├── conftest.py              # Test fixtures and sample byte payloads
+│   ├── test_api.py              # API endpoint integration tests
+│   ├── test_processor.py        # Unit tests for data cleaning logic
+│   ├── test_security.py         # Tests for security validations and sanitization
+│   └── test_storage.py          # Tests for storage management and pruning
+├── Dockerfile                   # Non-root container definition
 ├── docker-compose.yml           # Compose configuration
-├── pyproject.toml               # Project metadata, Ruff rules, and dependencies
+├── pyproject.toml               # Project metadata and Ruff configuration
 ├── pytest.ini                   # Pytest configuration
-├── requirements.txt             # Pinned production dependencies
+├── requirements.txt             # Pinned dependencies
 ├── LICENSE                      # MIT License
-├── pipeline.png                 # Portfolio architecture visual
-├── before-after.png             # Portfolio data comparison visual
+├── pipeline.png                 # Portfolio visual: architecture diagram
+├── before-after.png             # Portfolio visual: data transformation
 └── README.md
 ```
 
 ---
 
-## 8. Local Setup & Execution
+## Local Setup & Execution
 
 ### Prerequisites
 - Python 3.12 or higher
@@ -203,7 +201,7 @@ data-automation-demo/
 
 ### Installation
 ```bash
-# Clone the repository
+# Clone repository
 git clone https://github.com/your-username/data-automation-demo.git
 cd data-automation-demo
 
@@ -220,21 +218,21 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Open your browser:
-- Web Interface: [http://localhost:8000/](http://localhost:8000/)
-- OpenAPI Documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health Check: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+Access the application in your browser:
+- Web Interface: [http://localhost:8000](http://localhost:8000)
+- Interactive API Docs (Swagger UI): [http://localhost:8000/docs](http://localhost:8000/docs)
+- Health Check Endpoint: [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
 ---
 
-## 9. Running with Docker
+## Running with Docker
 
-### Using Docker Compose (Recommended)
+### Using Docker Compose
 ```bash
 docker compose up --build -d
 ```
 
-### Using Docker CLI Directly
+### Using Docker Directly
 ```bash
 # Build image
 docker build -t data-automation-demo:latest .
@@ -248,52 +246,51 @@ docker run -d \
   data-automation-demo:latest
 ```
 
-Verify container status:
-```bash
-docker ps
-docker inspect --format='{{json .State.Health}}' data_automation_demo
-```
+The container runs as a non-root user (`appuser`, UID 1001) and includes a healthcheck that polls `/api/health` every 30 seconds using Python's standard `urllib.request`.
 
 ---
 
-## 10. Automated Testing & Code Quality
+## Testing & Code Quality
 
-The project enforces strict code quality and testing standards:
+The codebase is checked using Ruff and tested with pytest:
 
 ```bash
-# 1. Check linting and formatting with Ruff
+# Linting check
 ruff check .
+
+# Formatting check
 ruff format --check .
 
-# 2. Run automated test suite
+# Run test suite
 pytest -v
 ```
 
 Expected output:
 ```text
-============================== 41 passed in ~0.55s ==============================
+============================== 41 passed in 0.50s ==============================
 ```
 
-Test coverage includes:
-- Delimiter sniffing (comma, semicolon, tab, pipe).
-- Multi-encoding ingestion (UTF-8, UTF-8-SIG BOM, Latin-1/ISO-8859-1).
-- Empty row and column elimination.
-- Exact deduplication.
-- Email hygiene and RFC 5322 validation.
-- International currency and negative accounting notation parsing.
-- Proper name casing while preserving mixed-case identifiers.
-- CSV Formula Injection (DDE) sanitization.
-- Upload size limits (HTTP 413) and invalid extension rejection (HTTP 400).
-- Path traversal prevention and UUID validation.
-- Storage lifecycle expiration pruning.
+The 41 tests cover:
+- CSV delimiter detection (comma, semicolon, tab, pipe).
+- Multi-encoding support (UTF-8, UTF-8-SIG with BOM, Latin-1/ISO-8859-1).
+- Empty row and column removal.
+- Exact duplicate elimination.
+- Email normalization and regex syntax verification.
+- International currency and negative number formatting.
+- Name casing normalization while preserving mixed-case identifiers.
+- CSV formula injection sanitization.
+- Upload size limits (HTTP 413) and disallowed extension handling (HTTP 400).
+- Filename path traversal prevention and UUID validation.
+- Storage artifact management and expiration pruning.
 
 ---
 
-## 11. API Reference
+## API Reference
 
 ### `GET /api/health`
-Checks service health and availability.
-- **Response `200 OK`**:
+Returns service status.
+
+**Response `200 OK`**:
 ```json
 {
   "status": "healthy",
@@ -304,13 +301,16 @@ Checks service health and availability.
 
 ### `POST /api/process`
 Uploads and processes a `.csv` or `.xlsx` file (max 15 MB).
-- **Request**: `multipart/form-data` with `file` field.
-- **Response `200 OK`**:
+
+- **Content-Type**: `multipart/form-data`
+- **Field**: `file`
+
+**Response `200 OK` (Example from `customers_messy.csv`)**:
 ```json
 {
-  "file_id": "4b6c3182-1a22-4fe1-9257-8df7d9b93be9",
+  "file_id": "4d9cf315-ccb3-4cb2-ba1c-bad12a2d1819",
   "original_filename": "customers_messy.csv",
-  "processed_at": "2026-10-04T20:25:00.000000Z",
+  "processed_at": "2026-10-04T21:01:26.643843+00:00",
   "metrics": {
     "rows_initial": 31,
     "rows_final": 25,
@@ -319,58 +319,83 @@ Uploads and processes a `.csv` or `.xlsx` file (max 15 MB).
     "duplicate_rows_removed": 3,
     "invalid_emails_count": 2,
     "invalid_values_detected": 3,
-    "fields_normalized": 42,
-    "null_values_count": 5,
-    "processing_time_ms": 12.4
+    "fields_normalized": 45,
+    "null_values_count": 2,
+    "processing_time_ms": 28.23
   },
   "changes_summary": [
-    "Trimmed whitespace from column headers",
     "Removed 1 completely empty column(s): notes_internal",
     "Removed 3 completely empty row(s)",
-    "Cleaned whitespace across 18 text cell(s)",
+    "Cleaned whitespace across 4 text cell(s)",
     "Sanitized 2 cell(s) starting with formula characters",
-    "Normalized 8 email address(es) to lowercase in 'email'",
-    "Normalized casing for 7 name(s) in 'name'",
-    "Normalized 14 currency/numeric value(s) in 'revenue'",
-    "Removed 3 exact duplicate row(s)"
+    "Normalized casing for 9 name(s) in 'name'",
+    "Normalized 6 email address(es) to lowercase in 'email'",
+    "Normalized 26 currency/numeric value(s) in 'revenue'",
+    "Removed 3 exact duplicate row(s)",
+    "Flagged 2 potentially invalid email address(es)"
   ],
   "warnings": [
-    "Row 7: Potentially invalid email 'maritime_sales_at_meridian.com' in column 'email'",
-    "Row 20: Unrecognized numeric format 'UNKNOWN_PENDING' in column 'revenue'"
+    "Row 6: Potentially invalid email 'maritime_sales_at_meridian.com' in column 'email'",
+    "Row 7: Potentially invalid email 'reservations@starlight' in column 'email'",
+    "Row 22: Unrecognized numeric format 'UNKNOWN_PENDING' in column 'revenue'"
   ],
-  "columns": ["customer_id", "name", "email", "city", "country", "phone", "revenue", "status"],
-  "sample_preview": [...],
-  "csv_download_url": "/api/download/4b6c3182-1a22-4fe1-9257-8df7d9b93be9/csv",
-  "xlsx_download_url": "/api/download/4b6c3182-1a22-4fe1-9257-8df7d9b93be9/xlsx"
+  "columns": [
+    "customer_id",
+    "name",
+    "email",
+    "city",
+    "country",
+    "phone",
+    "revenue",
+    "status"
+  ],
+  "sample_preview": [
+    {
+      "customer_id": "CUST-1001",
+      "name": "Vanguard Logistics",
+      "email": "contact@vanguardlogistics.com",
+      "city": "Chicago",
+      "country": "United States",
+      "phone": "+1-312-555-0143",
+      "revenue": 12450.0,
+      "status": "Active"
+    }
+  ],
+  "csv_download_url": "/api/download/4d9cf315-ccb3-4cb2-ba1c-bad12a2d1819/csv",
+  "xlsx_download_url": "/api/download/4d9cf315-ccb3-4cb2-ba1c-bad12a2d1819/xlsx"
 }
 ```
+*Note: `processing_time_ms` is an execution metric that varies depending on host environment and CPU load.*
 
-### `GET /api/download/{file_id}/{format}`
-Streams the sanitized dataset in `csv` or `xlsx` format.
-- **Parameters**: `file_id` (UUID), `format` (`csv` | `xlsx`).
-- **Response `200 OK`**: File attachment with appropriate MIME type.
+### `GET /api/download/{file_id}/{file_format}`
+Downloads the cleaned file in `csv` or `xlsx` format.
 
----
-
-## 12. Design Decisions & Trade-offs
-
-1. **Stateless Local Cache over Database**:
-   - Files are stored in a dedicated UUID-partitioned directory with a 1-hour expiration TTL. This eliminates external database dependencies (PostgreSQL/Redis), making the application completely self-contained and zero-maintenance while ensuring data privacy.
-2. **Conservative Transformation Strategy**:
-   - Malformed data that cannot be parsed unambiguously (e.g. `UNKNOWN_PENDING` in a revenue column) is never discarded or replaced with dummy defaults. It is preserved and reported in the `warnings` audit list so domain experts can make informed decisions.
-3. **Vanilla Frontend**:
-   - Built with semantic HTML, modern CSS flexbox/grid, and vanilla JavaScript. Eliminating frontend build frameworks (React, Webpack, npm) simplifies continuous deployment and eliminates JavaScript supply-chain vulnerabilities.
+- **Parameters**:
+  - `file_id`: UUID4 returned by `/api/process`.
+  - `file_format`: `csv` or `xlsx`.
+- **Response**: File download stream.
+- **Errors**:
+  - `400 Bad Request`: Invalid UUID format or unsupported export format.
+  - `404 Not Found`: File not found or expired.
 
 ---
 
-## 13. Limitations & Roadmap
+## Design Decisions
 
-- **Single-Sheet Processing**: Current Excel processing targets the active (first) sheet. Multi-tab consolidation can be added as a custom requirement.
-- **Large Dataset Threshold**: Because files are processed in-memory via pandas DataFrames, the tool is optimized for files up to ~100 MB. For multi-gigabyte files, chunked streaming via Polars or Dask would be recommended.
-- **Rule Customization**: Normalization rules (e.g., specific currency formats or date patterns) are currently applied based on standard business heuristics. Future versions could expose configurable rule profiles via JSON configuration.
+- **Stateless Local File Storage**: Exported files are written to local disk under UUID4 directory names with an automatic 1-hour expiration TTL. This keeps the application self-contained without requiring an external database or caching service.
+- **Conservative Data Mutation**: If a value cannot be parsed unambiguously (e.g. `UNKNOWN_PENDING` in a revenue column), the processor preserves the raw value and registers a warning rather than silently dropping the record or coercing it to zero.
+- **Lightweight Frontend**: The browser interface uses semantic HTML5, CSS, and Vanilla JavaScript, avoiding external build steps or frontend framework dependencies.
 
 ---
 
-## 14. License
+## Limitations
 
-Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
+- **In-Memory Processing & Upload Limit**: Datasets are loaded in memory using pandas DataFrames. The application enforces a 15 MB upload limit to prevent excessive memory consumption. For multi-gigabyte files, chunked streaming or distributed engines (such as Polars or Dask) would be required.
+- **Single-Sheet Excel Files**: The engine currently processes the active (first) worksheet in `.xlsx` workbooks.
+- **Heuristic Column Detection**: Column role detection (names, emails, currencies) is based on common naming keywords and string patterns. Datasets with non-standard column headers may require explicit column mapping.
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
