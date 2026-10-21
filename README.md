@@ -125,6 +125,7 @@ CUST-1020,Beacon Pharma Labs,procurement@beaconpharma.com,Boston,United States,+
 - **Email Hygiene**: Normalizes email addresses to lowercase and runs a practical regex syntax check (`^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$`).
 - **Name Casing**: Converts uppercase or lowercase names to Title Case while preserving intentional mixed casing (such as `McDonald` or `van der Waals`).
 - **Numbers & Currency**: Strips currency signs (`$`, `€`, `£`, `¥`), handles both US decimal format (`1,250.50`) and European format (`1.250,50`), and parses negative financial numbers (`-$450.25` or `($1,250.00)`).
+- Plain decimal syntax such as `.5` and `1.` is also accepted and normalized to a float.
 - **Deduplication**: Drops exact duplicate rows while preserving the first instance.
 
 ### Security & Input Handling
@@ -174,7 +175,6 @@ data-automation-demo/
 ├── storage/
 │   └── processed/               # Local processed files directory (.gitignore)
 ├── tests/
-│   ├── __init__.py
 │   ├── conftest.py              # Test fixtures and sample byte payloads
 │   ├── test_api.py              # API endpoint integration tests
 │   ├── test_processor.py        # Unit tests for data cleaning logic
@@ -184,7 +184,7 @@ data-automation-demo/
 ├── docker-compose.yml           # Compose configuration
 ├── pyproject.toml               # Project metadata and Ruff configuration
 ├── pytest.ini                   # Pytest configuration
-├── requirements.txt             # Pinned dependencies
+├── requirements.txt             # Runtime and development dependency ranges
 ├── LICENSE                      # MIT License
 ├── pipeline.png                 # Portfolio visual: architecture diagram
 ├── before-after.png             # Portfolio visual: data transformation
@@ -222,6 +222,15 @@ Access the application in your browser:
 - Web Interface: [http://localhost:8000](http://localhost:8000)
 - Interactive API Docs (Swagger UI): [http://localhost:8000/docs](http://localhost:8000/docs)
 - Health Check Endpoint: [http://localhost:8000/api/health](http://localhost:8000/api/health)
+
+### Quick Demo
+Upload `demo_data/customers_messy.csv` or `demo_data/customers_messy.xlsx` in the web interface. The sample demonstrates blank-row removal, duplicate removal, normalization, formula sanitization, and audit warnings. You can also send the CSV to the API:
+
+```bash
+curl -F "file=@demo_data/customers_messy.csv" http://localhost:8000/api/process
+```
+
+The response includes processing metrics, warnings, a preview, and CSV/XLSX download URLs. Open the web interface at `http://localhost:8000` for the simplest end-to-end walkthrough.
 
 ---
 
@@ -267,21 +276,23 @@ pytest -v
 
 Expected output:
 ```text
-============================== 41 passed ==============================
+============================== 48 passed ==============================
 ```
 
-The 41 tests cover:
+The 48 tests cover:
 - CSV delimiter detection (comma, semicolon, tab, pipe).
 - Multi-encoding support (UTF-8, UTF-8-SIG with BOM, Latin-1/ISO-8859-1).
 - Empty row and column removal.
 - Exact duplicate elimination.
 - Email normalization and regex syntax verification.
 - International currency and negative number formatting.
+- Ambiguous numeric parsing detection (e.g., `1,234` and `1.234`) with original value preservation and warning generation.
 - Name casing normalization while preserving mixed-case identifiers.
 - CSV formula injection sanitization.
 - Upload size limits (HTTP 413) and disallowed extension handling (HTTP 400).
-- Filename path traversal prevention and UUID validation.
-- Storage artifact management and expiration pruning.
+- Filename path traversal prevention (including Unicode support) and UUID validation.
+- Storage artifact management and expiration pruning with isolated test execution.
+- CORS policy configuration without credential exposure.
 
 ---
 
@@ -383,7 +394,7 @@ Downloads the cleaned file in `csv` or `xlsx` format.
 ## Design Decisions
 
 - **Stateless Local File Storage**: Exported files are written to local disk under UUID4 directory names with an automatic 1-hour expiration TTL. This keeps the application self-contained without requiring an external database or caching service.
-- **Conservative Data Mutation**: If a value cannot be parsed unambiguously (e.g. `UNKNOWN_PENDING` in a revenue column), the processor preserves the raw value and registers a warning rather than silently dropping the record or coercing it to zero.
+- **Conservative Data Mutation**: If a value cannot be parsed unambiguously (such as `UNKNOWN_PENDING` or ambiguous numeric formats like `1,234` and `1.234` where decimal vs. thousands separators cannot be determined without locale metadata), the processor preserves the raw value without mutation and registers an itemized warning rather than silently guessing or coercing values.
 - **Lightweight Frontend**: The browser interface uses semantic HTML5, CSS, and Vanilla JavaScript, avoiding external build steps or frontend framework dependencies.
 
 ---
@@ -393,6 +404,7 @@ Downloads the cleaned file in `csv` or `xlsx` format.
 - **In-Memory Processing & Upload Limit**: Datasets are loaded in memory using pandas DataFrames. The application enforces a 15 MB upload limit to prevent excessive memory consumption. For multi-gigabyte files, chunked streaming or distributed engines (such as Polars or Dask) would be required.
 - **Single-Sheet Excel Files**: The engine currently processes the active (first) worksheet in `.xlsx` workbooks.
 - **Heuristic Column Detection**: Column role detection (names, emails, currencies) is based on common naming keywords and string patterns. Datasets with non-standard column headers may require explicit column mapping.
+- **Conservative Single-Separator Numeric Parsing**: Single-separator numeric formats with 3-digit groupings (such as `1,234` or `1.234`) cannot be resolved unambiguously without locale context (e.g. US thousands vs. European decimal). Rather than assuming a regional convention, the engine preserves the original representation and flags an explicit audit warning. Unambiguous formats (e.g. `1,234.56`, `1.234,56`, `1,234,567`) are standardized to standard floats.
 
 ---
 

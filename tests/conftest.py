@@ -1,15 +1,20 @@
 import io
+from pathlib import Path
 
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.storage import StorageManager
 
 
 @pytest.fixture
-def client():
-    """FastAPI TestClient fixture."""
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """FastAPI TestClient fixture with isolated temporary storage."""
+    test_storage = StorageManager(base_dir=tmp_path / "storage", retention_seconds=3600)
+    monkeypatch.setattr("app.main.default_storage", test_storage)
+    monkeypatch.setattr("app.storage.default_storage", test_storage)
     with TestClient(app) as test_client:
         yield test_client
 

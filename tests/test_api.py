@@ -243,3 +243,72 @@ def test_process_actual_demo_xlsx_file(client):
     assert metrics["rows_final"] == 25
     assert metrics["duplicate_rows_removed"] == 3
     assert metrics["rows_removed_empty"] == 3
+
+
+def test_storage_isolation_no_artifacts_in_project_storage(client, valid_csv_bytes):
+    """
+    Verifies that API tests execute against isolated temporary storage
+    without polluting the project's storage/processed directory.
+    """
+    from app.config import STORAGE_DIR
+
+    entries_before = set(STORAGE_DIR.iterdir()) if STORAGE_DIR.exists() else set()
+
+    response = client.post(
+        "/api/process",
+        files={"file": ("isolation_check.csv", valid_csv_bytes, "text/csv")},
+    )
+    assert response.status_code == 200
+
+    entries_after = set(STORAGE_DIR.iterdir()) if STORAGE_DIR.exists() else set()
+    # Confirm no new files or folders were created in project storage/processed
+    assert entries_after == entries_before
+
+
+def test_cors_headers_do_not_expose_credentials(client):
+    """Verifies that CORS allows cross-origin requests without allow_credentials=True."""
+    response = client.options(
+        "/api/process",
+        headers={
+            "Origin": "http://example.com",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "*"
+    assert response.headers.get("access-control-allow-credentials") is None
+
+
+def test_process_ambiguous_numeric_dataset_via_api(client):
+    """
+    Verifies that ambiguous numeric strings (1,234 and 1.234) are
+    preserved without data mutation and flagged with warnings via API.
+    """
+    csv_content = (
+        b"Name,Revenue\n"
+        b'Ambiguous US,"1,234"\n'
+        b"Ambiguous EU,1.234\n"
+        b'Unambiguous US,"1,234.56"\n'
+        b'Unambiguous EU,"1.234,56"\n'
+    )
+
+    response = client.post(
+        "/api/process",
+        files={"file": ("mixed_numeric.csv", csv_content, "text/csv")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+
+    # Preserved values in sample preview
+    preview = data["sample_preview"]
+    assert preview[0]["Revenue"] == "1,234"
+    assert preview[1]["Revenue"] == "1.234"
+    assert preview[2]["Revenue"] == 1234.56
+    assert preview[3]["Revenue"] == 1234.56
+
+    # Warnings for ambiguous rows
+    warnings = data["warnings"]
+    assert any("Ambiguous numeric format '1,234'" in w for w in warnings)
+    assert any("Ambiguous numeric format '1.234'" in w for w in warnings)
+    assert not any("1,234.56" in w for w in warnings)
+    assert not any("1.234,56" in w for w in warnings)

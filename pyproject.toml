@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [
-    { name = "Data Engineering Team" }
+    { name = "Sergio Chillon Sendin" }
 ]
 dependencies = [
     "fastapi>=0.115.0",

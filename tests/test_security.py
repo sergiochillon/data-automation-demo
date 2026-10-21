@@ -22,10 +22,14 @@ def test_validate_file_metadata():
     """Confirms upload security constraints and checks."""
     max_bytes = 15 * 1024 * 1024
 
-    # Valid files
+    # Valid files (including Unicode international characters)
     ok, _ = validate_file_metadata("test.csv", 1024, max_bytes)
     assert ok is True
     ok, _ = validate_file_metadata("data.XLSX", 2048, max_bytes)
+    assert ok is True
+    ok, _ = validate_file_metadata("clientes_año_2024.csv", 1024, max_bytes)
+    assert ok is True
+    ok, _ = validate_file_metadata("données_financières.xlsx", 2048, max_bytes)
     assert ok is True
 
     # Empty filename
@@ -43,8 +47,20 @@ def test_validate_file_metadata():
     assert ok is False
     assert "null bytes" in msg
 
-    # Path traversal in filename
+    # Path traversal in filename (forward slash and backslash)
     ok, msg = validate_file_metadata("../../etc/shadow.csv", 1024, max_bytes)
+    assert ok is False
+    assert "Path traversal" in msg
+
+    ok, msg = validate_file_metadata("..\\..\\windows\\system32.csv", 1024, max_bytes)
+    assert ok is False
+    assert "Path traversal" in msg
+
+    ok, msg = validate_file_metadata("subfolder/data.csv", 1024, max_bytes)
+    assert ok is False
+    assert "Path traversal" in msg
+
+    ok, msg = validate_file_metadata("subfolder\\data.csv", 1024, max_bytes)
     assert ok is False
     assert "Path traversal" in msg
 

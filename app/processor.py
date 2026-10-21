@@ -3,7 +3,7 @@ import io
 import logging
 import re
 import time
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 import pandas as pd
@@ -178,7 +178,16 @@ def is_numeric_candidate_column(col_name: str) -> bool:
     return any(keyword in col_clean for keyword in NUMERIC_COL_KEYWORDS)
 
 
-def clean_currency_or_numeric_string(val: Any) -> tuple[Any, bool, bool]:
+class CleanNumericResult(NamedTuple):
+    """Result of currency and numeric string parsing."""
+
+    value: Any
+    was_normalized: bool
+    is_invalid: bool
+    is_ambiguous: bool = False
+
+
+def clean_currency_or_numeric_string(val: Any) -> CleanNumericResult:
     """
     Normalizes formatted numeric and currency strings into standard floating numbers.
 
@@ -187,20 +196,28 @@ def clean_currency_or_numeric_string(val: Any) -> tuple[Any, bool, bool]:
     - US decimal format: 1,250.50
     - European decimal format: 1.250,50
     - Negative accounting notation: ($500.00) or -$500.00
+    - Multiple thousands separators: 1,234,567 or 1.234.567
+    - Unambiguous decimal formats: 1234.56 or 1234,56
     - Whitespace trimming
 
+    Ambiguous representations (such as single separator with 3-digit grouping,
+    e.g. '1,234' or '1.234', where decimal vs. thousands separator cannot be
+    safely inferred without locale context) are flagged as ambiguous without
+    data mutation.
+
     Returns:
-        tuple of (cleaned_value, was_normalized: bool, is_invalid: bool)
+        CleanNumericResult containing:
+        (cleaned_value, was_normalized: bool, is_invalid: bool, is_ambiguous: bool)
     """
     if val is None or pd.isna(val):
-        return np.nan, False, False
+        return CleanNumericResult(np.nan, False, False, False)
 
     if isinstance(val, (int, float, np.integer, np.floating)):
-        return val, False, False
+        return CleanNumericResult(val, False, False, False)
 
     s = str(val).strip()
     if not s:
-        return np.nan, True, False
+        return CleanNumericResult(np.nan, True, False, False)
 
     # Check for accounting negative notation e.g. (1,250.00) or ($1,250.00)
     is_negative = False
@@ -210,42 +227,114 @@ def clean_currency_or_numeric_string(val: Any) -> tuple[Any, bool, bool]:
     elif s.startswith("-"):
         is_negative = True
         s = s[1:].strip()
+    elif s.startswith("+"):
+        s = s[1:].strip()
 
     # Strip currency symbols and whitespace
     cleaned = re.sub(r"[$\€\£\¥\s]", "", s)
     if not cleaned:
-        return np.nan, True, False
+        return CleanNumericResult(np.nan, True, False, False)
 
-    # US format: 1,234.56 or 1,234
-    if re.match(r"^\d{1,3}(,\d{3})*(\.\d+)?$", cleaned):
+    # Validate that cleaned only contains digits, dots, and commas
+    if not re.match(r"^[0-9.,]+$", cleaned):
+        return CleanNumericResult(val, False, True, False)
+
+    has_comma = "," in cleaned
+    has_dot = "." in cleaned
+
+    # Case A: Integer without dots or commas
+    if not has_comma and not has_dot:
         try:
+            num = float(cleaned)
+            if is_negative:
+                num = -num
+            was_norm = (str(val).strip() != str(num)) or is_negative or (cleaned != s)
+            return CleanNumericResult(num, was_norm, False, False)
+        except ValueError:
+            return CleanNumericResult(val, False, True, False)
+
+    # Case B: Both comma and dot present
+    if has_comma and has_dot:
+        # US format: comma as thousands separator, dot as decimal separator
+        if re.match(r"^\d{1,3}(,\d{3})+\.\d+$", cleaned):
             num = float(cleaned.replace(",", ""))
             if is_negative:
                 num = -num
-            return num, True, False
-        except ValueError:
-            pass
+            return CleanNumericResult(num, True, False, False)
 
-    # EU format: 1.234,56 or 1.234
-    if re.match(r"^\d{1,3}(\.\d{3})*(,\d+)?$", cleaned):
-        try:
-            standardized = cleaned.replace(".", "").replace(",", ".")
-            num = float(standardized)
+        # EU format: dot as thousands separator, comma as decimal separator
+        if re.match(r"^\d{1,3}(\.\d{3})+,\d+$", cleaned):
+            num = float(cleaned.replace(".", "").replace(",", "."))
             if is_negative:
                 num = -num
-            return num, True, False
-        except ValueError:
-            pass
+            return CleanNumericResult(num, True, False, False)
 
-    # Simple decimal or integer representation
-    try:
-        num = float(cleaned)
-        if is_negative:
-            num = -num
-        return num, (str(val).strip() != str(num)), False
-    except ValueError:
-        # Cannot be parsed as a valid numeric representation
-        return val, False, True
+        # Malformed combination of dots and commas
+        return CleanNumericResult(val, False, True, False)
+
+    # Case C: Comma only (no dots)
+    if has_comma and not has_dot:
+        # Multiple commas: unambiguous thousands separators (e.g., 1,234,567)
+        if cleaned.count(",") > 1:
+            if re.match(r"^\d{1,3}(,\d{3})+$", cleaned):
+                num = float(cleaned.replace(",", ""))
+                if is_negative:
+                    num = -num
+                return CleanNumericResult(num, True, False, False)
+            return CleanNumericResult(val, False, True, False)
+
+        # Single comma: check for ambiguity
+        if re.match(r"^\d*,\d+$", cleaned):
+            before, after = cleaned.split(",")
+            # Ambiguous: 1-3 digits before comma and exactly 3 digits after comma (e.g. 1,234)
+            # In US this is 1234; in EU this is 1.234 decimal.
+            # A leading zero (e.g. '0,123') is never a thousands separator and represents 0.123.
+            if 1 <= len(before) <= 3 and len(after) == 3 and int(before) > 0:
+                return CleanNumericResult(val, False, False, True)
+
+            # Unambiguous decimal comma (e.g., 1234,56, 12,50, or 0,123)
+            try:
+                num = float(f"{before or 0}.{after}")
+                if is_negative:
+                    num = -num
+                return CleanNumericResult(num, True, False, False)
+            except ValueError:
+                return CleanNumericResult(val, False, True, False)
+
+        return CleanNumericResult(val, False, True, False)
+
+    # Case D: Dot only (no commas)
+    if has_dot and not has_comma:
+        # Multiple dots: unambiguous thousands separators (e.g., 1.234.567)
+        if cleaned.count(".") > 1:
+            if re.match(r"^\d{1,3}(\.\d{3})+$", cleaned):
+                num = float(cleaned.replace(".", ""))
+                if is_negative:
+                    num = -num
+                return CleanNumericResult(num, True, False, False)
+            return CleanNumericResult(val, False, True, False)
+
+        # Single dot: check for ambiguity
+        if re.match(r"^(?:\d+(?:\.\d*)?|\.\d+)$", cleaned):
+            before, after = cleaned.split(".")
+            # Ambiguous: 1-3 digits before dot and exactly 3 digits after dot (e.g. 1.234)
+            # In US this is 1.234 decimal; in EU this is 1234.
+            # A leading zero (e.g. '0.123') is never a thousands separator and represents 0.123.
+            if 1 <= len(before) <= 3 and len(after) == 3 and int(before) > 0:
+                return CleanNumericResult(val, False, False, True)
+
+            # Unambiguous decimal dot (e.g., 1234.56, 12.50, or 0.123)
+            try:
+                num = float(cleaned)
+                if is_negative:
+                    num = -num
+                return CleanNumericResult(num, True, False, False)
+            except ValueError:
+                return CleanNumericResult(val, False, True, False)
+
+        return CleanNumericResult(val, False, True, False)
+
+    return CleanNumericResult(val, False, True, False)
 
 
 class DataProcessor:
@@ -437,27 +526,39 @@ class DataProcessor:
             # Financial / Numeric columns
             elif is_numeric_candidate_column(col):
                 numeric_converted = 0
+                has_unparsed_values = False
                 new_nums = []
                 for idx, val in enumerate(df[col]):
                     if pd.isna(val) or val is None:
                         new_nums.append(np.nan)
                         continue
 
-                    cleaned_num, was_normalized, is_invalid = clean_currency_or_numeric_string(val)
+                    cleaned_num, was_normalized, is_invalid, is_ambiguous = (
+                        clean_currency_or_numeric_string(val)
+                    )
                     if was_normalized:
                         numeric_converted += 1
                         fields_normalized_count += 1
                     if is_invalid:
                         invalid_values_count += 1
+                        has_unparsed_values = True
                         warnings.append(
                             f"Row {idx + 1}: Unrecognized numeric format '{val}' in column '{col}'"
+                        )
+                    elif is_ambiguous:
+                        invalid_values_count += 1
+                        has_unparsed_values = True
+                        warnings.append(
+                            f"Row {idx + 1}: Ambiguous numeric format '{val}' in column '{col}' "
+                            "(cannot distinguish decimal from thousands separator)"
                         )
 
                     new_nums.append(cleaned_num)
 
                 df[col] = new_nums
-                with contextlib.suppress(ValueError, TypeError):
-                    df[col] = pd.to_numeric(df[col])
+                if not has_unparsed_values:
+                    with contextlib.suppress(ValueError, TypeError):
+                        df[col] = pd.to_numeric(df[col])
 
                 if numeric_converted > 0:
                     changes_summary.append(
